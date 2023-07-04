@@ -8,6 +8,8 @@
 #include <ESP8266WebServer.h>
 #include <WiFiManager.h>         //https://github.com/tzapu/WiFiManager
 
+#include "ThingSpeak.h"
+#include <arduino-timer.h>
 
 // Reglage du contraste 
 #define CONTRAST 4
@@ -25,6 +27,8 @@ const int Sensor2 = D6;
 String request = "";
 
 int compteur=0;
+int entree=0;
+int sortie=0;
 int affichage=0;
 
 unsigned long lastTrigger = 0;
@@ -34,6 +38,15 @@ boolean MotionOn2=false;
 
 ESP8266WebServer server(80);    // Create a webserver object that listens for HTTP request on port 80
 
+//INIT THINKSPEAK
+WiFiClient  client;
+
+unsigned long myChannelNumber = 2178608;
+const char * myWriteAPIKey = "VCQY7FP9C1MR81C2";
+
+auto timer = timer_create_default(); // create a timer with default settings
+
+
 void handleRoot();              // function prototypes for HTTP handlers
 
 IRAM_ATTR void detectsMovement1() {
@@ -42,16 +55,43 @@ IRAM_ATTR void detectsMovement1() {
 IRAM_ATTR void detectsMovement2() {
   MotionOn2=true;
 }
+bool push(void *) {
+
+  ThingSpeak.setField(1, entree);
+  ThingSpeak.setField(2, sortie);
+  ThingSpeak.setField(3, compteur);
+
+  ThingSpeak.writeFields(myChannelNumber, myWriteAPIKey);
+
+  return true; // repeat? true
+}
+void push_aff(){
+  ThingSpeak.setField(1, entree);
+  ThingSpeak.setField(2, sortie);
+  ThingSpeak.setField(3, compteur);
+
+  ThingSpeak.writeFields(myChannelNumber, myWriteAPIKey);
+
+}
 
 void aff(){
     if (compteur!=affichage){
     affichage=compteur;
     display.clear();
     display.showNumberDec(compteur, false, 4, 0); 
+    Serial.println("compteur");
     Serial.println(compteur);
+    Serial.println("entree");
+    Serial.println(entree);
+    Serial.println("sortie");
+    Serial.println(sortie);
+    //push_aff();
   }
 
 }
+
+
+
 
 void setup() {
   WiFiManager wifiManager;
@@ -71,6 +111,10 @@ void setup() {
   Serial.println("connected!");
   Serial.println(WiFi.localIP());
 
+
+  ThingSpeak.begin(client);  // Initialize ThingSpeak
+  timer.every(300000, push);
+
 }
 
 void loop() {
@@ -89,6 +133,7 @@ void loop() {
     Serial.println("MotionOn1 stage2");
     if (MotionOn2){
       compteur+=1;
+      entree+=1;
       aff();
       delay(Delay2Passage);
     }
@@ -106,6 +151,7 @@ void loop() {
     Serial.println("MotionOn2 stage2");
     if (MotionOn1){
       compteur-=1;
+      sortie+=1;
       aff();
       delay(Delay2Passage);
     }
@@ -113,7 +159,7 @@ void loop() {
     MotionOn1=false;
   }  
 
-
+  timer.tick(); // tick the timer
 
 
 }
